@@ -20,30 +20,13 @@
 
 #include <stdint.h> // Include standard integer types
 
-#define LED_PIN_12 12 // LED 4
-#define LED_PIN_13 13 // LED 3
-#define LED_PIN_14 14 // LED 5
-#define LED_PIN_15 15 // LED 6
-#define LED_PORT GPIO_D // Assuming GPIO_D is defined for the LED port
-
-#define RCC_BASE_ADDRESS 0x40023800 // Base address for RCC
-#define GPIO_D_BASE_ADDRESS 0x40020C00 // Base address for GPIO D
-#define GPIO_DENR_OFFSET 0x30 // Offset for GPIO D clock enable register
-
-// Define the GPIO D clock enable register address
-#define GPIO_D_CLOCK_ENABLE (RCC_BASE_ADDRESS + GPIO_DENR_OFFSET)
-
-// Define the LED port base address
-#define GPIO_D ((volatile uint32_t *)GPIO_D_BASE_ADDRESS)
-
-// Define the LED pin states
-#define LED_ON 1
-#define LED_OFF 0
+#include "portConfig.h" // Include the port configuration header
+#include "toggleLed.h" // Include the toggle LED header
+#include "hwTimer.h" // Include the hardware timer header
 
 // Function prototypes
 void GPIO_Init(void);
 void delay(uint32_t ms);
-void Toggle_LED(void);
 
 // Function definitions
 
@@ -53,6 +36,10 @@ void GPIO_Init(void)
     volatile uint32_t * RCC_AHB1ENR = (volatile uint32_t *)GPIO_D_CLOCK_ENABLE; // RCC AHB1ENR address
 
     *RCC_AHB1ENR |= (1 << 3); // Set bit 3 to enable clock for GPIO D (assuming GPIO D is the 4th GPIO port)
+
+    // Enable clock for TIM2
+    volatile uint32_t * RCC_APB1ENR = (volatile uint32_t *)TIM2_CLOCK_ENABLE; // RCC APB1ENR address
+    *RCC_APB1ENR |= (1 << 0); // Set bit 0 to enable clock for TIM2 
 
     // Wait for the clock to stabilize (optional, depending on the microcontroller)
     // This is usually not necessary for most STM32 devices, but can be included for safety
@@ -104,36 +91,25 @@ void delay(uint32_t ms)
     // For more precise timing, consider using a hardware timer or an RTOS delay function
 }
 
-void Toggle_LED(void)
-{
-    // Toggle the state of the LED pin
-    // This could be done by reading the current state and writing the opposite state
-    volatile uint32_t * GPIO_D_ODR = (volatile uint32_t *)(GPIO_D_BASE_ADDRESS + 0x14); // Output Data Register address
-    *GPIO_D_ODR ^= (1 << LED_PIN_12); // Toggle pin 12
-    *GPIO_D_ODR ^= (1 << LED_PIN_13); // Toggle pin 13
-    *GPIO_D_ODR ^= (1 << LED_PIN_14); // Toggle pin 14
-    *GPIO_D_ODR ^= (1 << LED_PIN_15); // Toggle pin 15
-    
-    // This function toggles the state of the LEDs connected to pins 12-15
-    // It uses the Output Data Register (ODR) to read and write the pin states
-    // Ensure that the GPIO D is properly initialized before calling this function
-}
-
 
 
 int main(void)
 {
     // Initialize the GPIO for the LED
     GPIO_Init();
+    hwTimer_Init((uint32_t *)TIM2_BASE_ADDRESS); // Initialize the hardware timer with TIM2 base address
+       
 
     // Main loop
     while (1)
     {
+        hwTimer_Start((uint32_t *)TIM2_BASE_ADDRESS); // Start the hardware timer
         // Toggle the LED
         Toggle_LED();
 
         // Delay for 500 milliseconds
-        delay(500);
+        // delay(500);
+        hwTimer_Stop((uint32_t *)TIM2_BASE_ADDRESS); // Stop the hardware timer
     }
 
     // Should never reach here
